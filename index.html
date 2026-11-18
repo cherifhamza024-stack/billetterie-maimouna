@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#06201d">
+<title>Contrôle tickets — La Fête du Maïmouna</title>
+<style>
+  :root { --em:#06201d; --em2:#0e3f37; --gold:#e8be60; --cream:#f6efe3; --ok:#12a150; --ko:#d62d2d; --warn:#f08c00; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--em); color:var(--cream); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { padding:14px 16px 8px; display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:15px; letter-spacing:.12em; margin:0; color:var(--gold); }
+  header small { display:block; color:#cfd9d4; letter-spacing:0; font-weight:500; margin-top:2px; }
+  .chip { background:var(--em2); border:1px solid #2f6b60; padding:6px 10px; border-radius:20px; font-size:12px; }
+  main { padding:0 16px 24px; }
+  .card { background:var(--em2); border:1px solid #2f6b60; border-radius:16px; padding:16px; margin-top:12px; }
+  label { display:block; font-size:12px; letter-spacing:.08em; color:var(--gold); margin:12px 0 6px; font-weight:700; }
+  input,select { width:100%; font-size:17px; padding:13px 12px; border-radius:10px; border:1px solid #3d7a6e; background:#041815; color:var(--cream); }
+  button { font:inherit; font-weight:800; letter-spacing:.04em; border:0; border-radius:12px; padding:15px 16px; width:100%; cursor:pointer; }
+  .btn-gold { background:linear-gradient(#ffe7a6,#e8b552,#b07a28); color:#1b1206; font-size:17px; }
+  .btn-ghost { background:transparent; color:var(--cream); border:1px solid #3d7a6e; margin-top:10px; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  .seg { display:flex; background:#041815; border-radius:12px; padding:4px; gap:4px; }
+  .seg button { background:transparent; color:#cfd9d4; padding:12px 8px; font-size:14px; }
+  .seg button.on { background:var(--gold); color:#1b1206; }
+  #cam { position:relative; border-radius:16px; overflow:hidden; background:#000; margin-top:12px; aspect-ratio:3/4; max-height:62vh; width:100%; }
+  #cam video { width:100%; height:100%; object-fit:cover; display:block; }
+  #cam .frame { position:absolute; inset:18% 14%; border:3px solid var(--gold); border-radius:18px; box-shadow:0 0 0 999px rgba(0,0,0,.35); }
+  #cam .hint { position:absolute; left:0; right:0; bottom:10px; text-align:center; font-size:14px; font-weight:700; text-shadow:0 1px 3px #000; }
+  #res { position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; z-index:10; }
+  #res.show { display:flex; }
+  #res .big { font-size:44px; font-weight:900; letter-spacing:.02em; line-height:1.05; }
+  #res .ico { font-size:86px; line-height:1; margin-bottom:10px; }
+  #res .num { font-size:34px; font-weight:900; margin-top:14px; }
+  #res .msg { font-size:18px; margin-top:8px; font-weight:600; }
+  #res .det { margin-top:18px; font-size:15px; background:rgba(0,0,0,.22); border-radius:14px; padding:12px 16px; text-align:left; width:100%; max-width:420px; line-height:1.6; }
+  #res .actions { width:100%; max-width:420px; margin-top:20px; display:grid; gap:10px; }
+  #res button { background:rgba(255,255,255,.95); color:#111; font-size:18px; }
+  .ok { background:var(--ok); } .ko { background:var(--ko); } .warn { background:var(--warn); } .info { background:#24524a; }
+  .stats td,.stats th { padding:6px 8px; text-align:right; } .stats th:first-child,.stats td:first-child { text-align:left; }
+  .stats { width:100%; border-collapse:collapse; font-size:15px; } .stats tr+tr td { border-top:1px solid #2f6b60; }
+  .muted { color:#a9bdb6; font-size:13px; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>COME HAVE FUN<small>La Fête du Maïmouna • Contrôle tickets</small></h1>
+  <span class="chip" id="netChip">●</span>
+</header>
+<main>
+  <!-- SETUP -->
+  <section id="setup" class="card">
+    <div class="seg" id="modeSeg">
+      <button data-mode="entree" class="on">🎟️ Entrée (contrôle)</button>
+      <button data-mode="vente">🛒 Vente (relais)</button>
+    </div>
+    <label>Adresse du serveur</label>
+    <input id="api" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    <label>Code PIN</label>
+    <input id="pin" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Ton code PIN" autocomplete="off">
+    <div id="porteBox"><label>Nom de la porte</label><input id="porte" placeholder="Ex. Porte 1"></div>
+    <div id="relaisBox" class="hidden"><label>Nom du relais (commune + nom)</label><input id="relais" placeholder="Ex. Abobo — Abdi"></div>
+    <p class="muted" id="setupErr"></p>
+    <button class="btn-gold" id="start">Commencer</button>
+  </section>
+
+  <!-- SCAN -->
+  <section id="scan" class="hidden">
+    <div class="row" style="margin-top:4px">
+      <div class="chip" id="who" style="flex:2"></div>
+      <button class="btn-ghost" id="logout" style="margin:0;padding:8px;flex:1">Changer</button>
+    </div>
+    <div id="cam"><video id="video" playsinline muted></video><div class="frame"></div><div class="hint" id="hint">Place le QR du ticket dans le cadre</div></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn-ghost" id="statsBtn" style="margin:0">📊 Statistiques</button>
+    </div>
+    <div class="card hidden" id="statsCard"></div>
+  </section>
+</main>
+
+<!-- RESULT -->
+<div id="res"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { return localStorage.getItem('chf26_' + k) ?? d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('chf26_' + k, v); } catch (e) {} },
+    del(k) { try { localStorage.removeItem('chf26_' + k); } catch (e) {} }
+  };
+  // allow sharing the server URL in the link: scanner.html#api=https://...
+  const hashApi = new URLSearchParams(location.hash.slice(1)).get('api');
+  if (hashApi) store.set('api', hashApi);
+
+  let mode = store.get('mode', 'entree');
+  const recentOk = {}; // code -> time validated on THIS phone
+  let role = null, stream = null, busy = false, lastCode = '', lastAt = 0, detector = null, loopOn = false;
+  const video = $('video');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  // ---------- setup
+  $('api').value = store.get('api', '');
+  $('pin').value = store.get('pin', '');
+  $('porte').value = store.get('porte', '');
+  $('relais').value = store.get('relais', '');
+  function setMode(m) {
+    mode = m; store.set('mode', m);
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+    $('porteBox').classList.toggle('hidden', m !== 'entree');
+    $('relaisBox').classList.toggle('hidden', m !== 'vente');
+  }
+  document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+  setMode(mode);
+
+  async function api(params) {
+    const url = new URL(store.get('api', ''));
+    Object.entries(Object.assign({ pin: store.get('pin', '') }, params)).forEach(([k, v]) => url.searchParams.set(k, v));
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 15000);
+    try {
+      const r = await fetch(url.toString(), { signal: ctl.signal, redirect: 'follow' });
+      setNet(true);
+      return await r.json();
+    } catch (e) {
+      setNet(false);
+      return { ok: false, result: 'RESEAU', message: 'Pas de connexion au serveur. Vérifie internet et réessaie.' };
+    } finally { clearTimeout(t); }
+  }
+  function setNet(ok) { $('netChip').textContent = ok ? '● en ligne' : '● hors ligne'; $('netChip').style.color = ok ? '#5ee39a' : '#ff8a8a'; }
+
+  $('start').onclick = async () => {
+    const a = $('api').value.trim(), p = $('pin').value;
+    if (!/^https?:\/\//.test(a)) return $('setupErr').textContent = 'Colle l’adresse du serveur (commence par https://).';
+    if (!p) return $('setupErr').textContent = 'Entre le code PIN.';
+    if (mode === 'entree' && !$('porte').value.trim()) return $('setupErr').textContent = 'Indique le nom de la porte.';
+    if (mode === 'vente' && !$('relais').value.trim()) return $('setupErr').textContent = 'Indique le nom du relais.';
+    store.set('api', a); store.set('pin', p); store.set('porte', $('porte').value.trim()); store.set('relais', $('relais').value.trim());
+    $('setupErr').textContent = 'Connexion…';
+    const r = await api({ action: 'ping' });
+    if (!r.ok) return $('setupErr').textContent = r.message || 'Erreur';
+    role = r.role;
+    if (mode === 'vente' && !['relais', 'admin'].includes(role)) return $('setupErr').textContent = 'Ce PIN ne permet pas la vente.';
+    if (mode === 'entree' && !['controle', 'admin'].includes(role)) return $('setupErr').textContent = 'Ce PIN ne permet pas le contrôle.';
+    $('setupErr').textContent = '';
+    showScan();
+  };
+  $('logout').onclick = () => { stopCam(); store.del('pin'); $('pin').value = ''; $('scan').classList.add('hidden'); $('setup').classList.remove('hidden'); };
+
+  function showScan() {
+    $('setup').classList.add('hidden'); $('scan').classList.remove('hidden');
+    $('who').textContent = mode === 'entree' ? '🎟️ Entrée — ' + store.get('porte', '') : '🛒 Vente — ' + store.get('relais', '');
+    $('statsBtn').classList.toggle('hidden', !['controle', 'admin'].includes(role));
+    $('hint').textContent = mode === 'entree' ? 'Scanne le QR du ticket à l’entrée' : 'Scanne le QR du ticket à vendre';
+    startCam();
+  }
+
+  // ---------- camera
+  async function startCam() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      video.srcObject = stream; await video.play();
+      if ('BarcodeDetector' in window) { try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { detector = null; } }
+      loopOn = true; requestAnimationFrame(loop);
+    } catch (e) {
+      $('hint').textContent = 'Caméra indisponible : autorise la caméra (la page doit être en https).';
+    }
+  }
+  function stopCam() { loopOn = false; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; }
+
+  let lastTick = 0;
+  async function loop(ts) {
+    if (!loopOn) return;
+    if (!busy && ts - lastTick > 140 && video.readyState >= 2) {
+      lastTick = ts;
+      let code = null;
+      try {
+        if (detector) {
+          const r = await detector.detect(video);
+          if (r && r[0]) code = r[0].rawValue;
+        } else if (window.jsQR) {
+          const w = 640, h = Math.round(640 * video.videoHeight / video.videoWidth) || 480;
+          canvas.width = w; canvas.height = h; ctx.drawImage(video, 0, 0, w, h);
+          const img = ctx.getImageData(0, 0, w, h);
+          const q = jsQR(img.data, w, h, { inversionAttempts: 'dontInvert' });
+          if (q) code = q.data;
+        }
+      } catch (e) {}
+      if (code) onCode(code.trim());
+    }
+    requestAnimationFrame(loop);
+  }
+
+  async function onCode(code) {
+    const now = Date.now();
+    if (code === lastCode && now - lastAt < 6000) return;
+    lastCode = code; lastAt = now;
+    if (mode === 'vente') return askTel(code);
+    busy = true;
+    showRes('info', '⏳', 'Vérification…', '', '');
+    const r = await api({ action: 'scan', code, porte: store.get('porte', '') });
+    handle(r, code);
+  }
+  window.__testCode = onCode; // used by automated tests only
+
+  // ---------- vente : saisie du numéro acheteur
+  function askTel(code) {
+    busy = true;
+    const num = (code.match(/CHF26-(GP|VIP|VVIP)-(\d{4})/) || [])[0];
+    const label = num ? num.replace('CHF26-', '') : 'Ticket';
+    $('res').className = 'show info';
+    $('res').innerHTML = `<div class="ico">🛒</div><div class="big">${label}</div>
+      <div class="msg">Numéro de téléphone de l’acheteur</div>
+      <div class="actions"><input id="tel" type="tel" inputmode="tel" placeholder="07 00 00 00 00" style="font-size:24px;text-align:center">
+      <button id="actBtn">✅ Activer ce ticket</button><button id="cancelBtn" style="background:transparent;color:#fff;border:1px solid #fff">Annuler</button></div>`;
+    setTimeout(() => $('tel').focus(), 50);
+    $('cancelBtn').onclick = closeRes;
+    $('actBtn').onclick = async () => {
+      const tel = $('tel').value.replace(/\D/g, '');
+      if (tel.length < 8) { $('tel').style.borderColor = '#ff8a8a'; return; }
+      $('actBtn').disabled = true; $('actBtn').textContent = 'Activation…';
+      const r = await api({ action: 'activate', code, tel, relais: store.get('relais', '') });
+      handle(r, code);
+    };
+  }
+
+  // ---------- résultats
+  const VIEW = {
+    VALIDE:       ['ok', '✅', 'ENTRÉE<br>AUTORISÉE'],
+    ADMIS_MANUEL: ['ok', '✅', 'ADMISSION<br>MANUELLE'],
+    ACTIVE_OK:    ['ok', '✅', 'TICKET<br>ACTIVÉ'],
+    DEJA_SCANNE:  ['ko', '⛔', 'DÉJÀ<br>SCANNÉ'],
+    FAUX:         ['ko', '⛔', 'FAUX<br>TICKET'],
+    NON_ACTIVE:   ['warn', '⚠️', 'TICKET<br>NON VENDU'],
+    DEJA_ACTIVE:  ['warn', '⚠️', 'DÉJÀ<br>ACTIVÉ'],
+    DEJA_UTILISE: ['ko', '⛔', 'DÉJÀ<br>UTILISÉ'],
+    TEL_INVALIDE: ['warn', '⚠️', 'NUMÉRO<br>INVALIDE'],
+    RESEAU:       ['warn', '📶', 'PAS DE<br>RÉSEAU'],
+  };
+  function handle(r, code) {
+    if (r.result === 'VALIDE') recentOk[code] = Date.now();
+    let v = VIEW[r.result] || ['ko', '⛔', (r.result || 'ERREUR').replace(/_/g, ' ')];
+    const sinceOk = recentOk[code] ? Math.round((Date.now() - recentOk[code]) / 1000) : null;
+    if (r.result === 'DEJA_SCANNE' && sinceOk !== null && sinceOk < 90) {
+      v = ['warn', '🔁', 'DÉJÀ VALIDÉ<br>ICI'];
+      r = Object.assign({}, r, { message: `Validé sur ce téléphone il y a ${sinceOk} s. Si c’est la même personne, elle peut passer. Sinon : REFUSER.` });
+    }
+    const t = r.ticket || {};
+    let det = '';
+    if (t.numero) {
+      det += `<b>${t.numero}</b> — ${t.categorie} — ${t.prix}<br>`;
+      if (t.relais) det += `Vendu par : <b>${esc(t.relais)}</b><br>`;
+      if (t.tel_masque) det += `Tél. acheteur : <b>${t.tel_masque}</b><br>`;
+      if (t.active_le) det += `Activé le : ${t.active_le}<br>`;
+      if (t.scanne_le) det += `Entré le : <b>${t.scanne_le}</b> ${t.porte ? '— ' + esc(t.porte) : ''}<br>`;
+      if (t.notes) det += `Note : ${esc(t.notes)}`;
+    }
+    let extra = '';
+    if (r.result === 'DEJA_SCANNE') extra = `<p class="msg" style="font-size:15px">Demande à la personne son numéro de téléphone : s’il finit par les chiffres ci-dessus, c’est le vrai acheteur → appelle le responsable.</p>`;
+    if (r.result === 'DEJA_SCANNE' && role === 'admin') extra += `<button id="forceBtn">Admettre quand même (responsable)</button>`;
+    if (r.result === 'RESEAU') extra += `<button id="retryBtn">Réessayer</button>`;
+    showRes(v[0], v[1], v[2], r.message || '', det, extra);
+    feedback(v[0]);
+    const fb = $('forceBtn'); if (fb) fb.onclick = async () => { const rr = await api({ action: 'force', code, porte: store.get('porte', '') }); handle(rr, code); };
+    const rb = $('retryBtn'); if (rb) rb.onclick = () => { lastCode = ''; closeRes(); onCode(code); };
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function showRes(cls, ico, big, msg, det, extra) {
+    $('res').className = 'show ' + cls;
+    $('res').innerHTML = `<div class="ico">${ico}</div><div class="big">${big}</div>${msg ? `<div class="msg">${esc(msg)}</div>` : ''}
+      ${det ? `<div class="det">${det}</div>` : ''}<div class="actions">${extra || ''}${cls !== 'info' ? '<button id="nextBtn">Ticket suivant</button>' : ''}</div>`;
+    const nb = $('nextBtn'); if (nb) nb.onclick = closeRes;
+  }
+  function closeRes() { $('res').className = ''; $('res').innerHTML = ''; busy = false; lastAt = Date.now(); }
+  function feedback(kind) {
+    try { navigator.vibrate && navigator.vibrate(kind === 'ok' ? 120 : [250, 100, 250]); } catch (e) {}
+    try {
+      const A = new (window.AudioContext || window.webkitAudioContext)();
+      const o = A.createOscillator(), g = A.createGain();
+      o.frequency.value = kind === 'ok' ? 880 : 220; o.type = kind === 'ok' ? 'sine' : 'square';
+      g.gain.value = 0.15; o.connect(g); g.connect(A.destination); o.start(); o.stop(A.currentTime + (kind === 'ok' ? 0.15 : 0.45));
+    } catch (e) {}
+  }
+
+  // ---------- stats
+  $('statsBtn').onclick = async () => {
+    const c = $('statsCard');
+    if (!c.classList.contains('hidden')) return c.classList.add('hidden');
+    c.classList.remove('hidden'); c.innerHTML = 'Chargement…';
+    const r = await api({ action: 'stats' });
+    if (!r.ok) return c.innerHTML = esc(r.message || 'Erreur');
+    let h = '<table class="stats"><tr><th></th><th>Non vendus</th><th>Vendus</th><th>Entrés</th></tr>';
+    ['GP', 'VIP', 'VVIP'].forEach(k => { const s = r.stats[k] || {}; h += `<tr><td><b>${k}</b></td><td>${s.NON_ACTIVE || 0}</td><td>${s.ACTIVE || 0}</td><td>${s.SCANNE || 0}</td></tr>`; });
+    h += '</table>';
+    const rel = Object.entries(r.relais || {}).sort((a, b) => b[1] - a[1]);
+    if (rel.length) h += '<p class="muted" style="margin:14px 0 4px">Ventes par relais</p><table class="stats">' + rel.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + '</table>';
+    c.innerHTML = h;
+  };
+
+  // auto-resume if already configured
+  if (store.get('api', '') && store.get('pin', '')) {
+    api({ action: 'ping' }).then(r => { if (r.ok) { role = r.role; showScan(); } });
+  }
+})();
+</script>
+</body>
+</html>
